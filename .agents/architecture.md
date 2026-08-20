@@ -59,22 +59,25 @@ storefront/
     (auth)/login/  (auth)/signup/
     (account)/             # session-guarded: cart, wishlist, addresses, orders, checkout
       cart/                # (cart must be reachable unauthenticated? NO — cart is C-guarded)
+      checkout/            # checkout form page
+      checkout/result/     # backend-result page: receipt OR "payment processing" (gateway)
+      orders/  orders/[id]/   # own order list; detail (items, invoice, timeline, cancel/return)
       ...
   components/
     ui/                    # shadcn base-nova (starter)
-    layout/                # SiteHeader, SiteFooter, CartBadge, SearchBox, MobileNav
+    layout/                # SiteHeader, SiteFooter, CartBadge, SearchBox, MobileNav, AccountMenu
     product/               # ProductCard, VariantPicker, PriceText, StockBadge, WishlistToggle, ProductDetailPage
-    cart/  account/        # CartLine, CheckoutForm, OrderTimeline, AddressForm, AddressFormDialog
+    cart/  account/        # CartLine; CheckoutForm, OrderStatusBadge, OrderTimeline, ReturnFormDialog, AddressForm, AddressFormDialog
     shared/                # EmptyState, ErrorState, ConfirmDialog, QtyStepper
   lib/
     api/                   # client, requests, errors, idempotency, server-session (as dashboard)
-    domain/                # money.ts, lifecycle.ts (order statuses), lists.ts
-    realtime/              # ws client (order:{id}, invoice:{id})
+    domain/                # money.ts, dates.ts (formatDate/formatDateTime), lifecycle.ts (order statuses), lists.ts
+    realtime/              # ws client (order:{id}, invoice:{id}, payment.confirmed)
     types/                 # zod mirrors of /api/storefront/* shapes
     verify/                # hygiene scripts
     utils.ts
   stores/                  # use-session.ts, use-live.ts, use-cart.ts, use-checkout.ts
-  hooks/                   # use-mobile (starter), use-query, use-add-to-cart, use-wishlist-toggle
+  hooks/                   # use-mobile (starter), use-query, use-realtime (subscribe wrapper), use-add-to-cart, use-wishlist-toggle
 ```
 
 Route-group decisions:
@@ -192,6 +195,9 @@ everything else is store state.
 - **Checkout success in gateway mode does NOT show a receipt** — it shows "payment
   processing" and subscribes; the receipt appears when `order.confirmed` /
   `invoice.issued` arrives. The customer may also close the tab and check `/orders`.
+- **`payment.confirmed` clears the cart on the backend** (same tx that confirms the
+  order) — the realtime client invalidates the live `"cart"` query AND the cart badge
+  store on that frame, so the header badge drops without a reload.
 - Reconnect: backoff (1s→…→15s), resubscribe, refetch. No polling anywhere.
 
 WS URL: `NEXT_PUBLIC_WS_BASE` if set, else `${location.origin}/api/ws`.
@@ -242,7 +248,11 @@ Feature decisions:
   `insufficient_stock` path refetches the cart and marks lines.
 - **Order detail** shows the backend's `items` (invoice lines when the invoice exists),
   totals, and the `events` timeline. For a `pending` gateway order with no confirmed
-  invoice, items come from the draft invoice the backend created at checkout.
+  invoice, items come from the draft invoice the backend created at checkout. A pending
+  order's row `totalPaise` is `0` while the draft invoice already carries the real
+  backend-computed `subtotal/tax/total` — the detail header and list render the invoice
+  total when the invoice exists, the row total otherwise (both are backend numbers;
+  never a client sum).
 - **Return form** (confirmed orders only): line/qty pickers against the order's items,
   validated ≤ original; submit `POST /storefront/returns`. Staff confirm applies real
   caps.

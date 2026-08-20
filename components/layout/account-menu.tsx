@@ -15,7 +15,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LogOut, ShoppingBag } from "lucide-react";
+import { LogOut, MapPin, Package, ShoppingBag } from "lucide-react";
 import { useSessionStore } from "@/stores/use-session";
 
 /**
@@ -74,6 +74,14 @@ export function AccountMenu() {
           <DropdownMenuItem render={<Link href="/cart" />}>
             <ShoppingBag />
             Your cart
+          </DropdownMenuItem>
+          <DropdownMenuItem render={<Link href="/orders" />}>
+            <Package />
+            Your orders
+          </DropdownMenuItem>
+          <DropdownMenuItem render={<Link href="/addresses" />}>
+            <MapPin />
+            Addresses
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />

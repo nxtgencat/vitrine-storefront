@@ -175,3 +175,28 @@ limitation of the backend (`/api/storefront/products/:slug` returns raw variant 
   /api/storefront/cart/:variantId`, `POST/DELETE /api/storefront/wishlist/:variantId`)
   return the raw `cart_items`/`wishlists` row (or `{}` for a no-op delete) — the mirrors
   accept them via passthrough.
+
+**Verified during phase 4 (checkout-orders):**
+
+- Checkout always returns an `invoice` (non-null): `issued` for COD, `draft` for gateway.
+  `checkoutReference` is the **`gatewayPaymentId` on the payments row** (the provider's
+  checkout reference — that's the value a gateway webhook echoes back, not the payment id
+  and not the order id).
+- A pending gateway order's row `totalPaise` is `0`, but its **draft invoice already
+  carries the real totals** (`subtotal/tax/total` computed at checkout, invoice_items with
+  `lineTotalPaise = unit×qty` incl. tax) — the storefront shows the invoice total when the
+  invoice exists (verified: E2E10-5 ₹550 → line ₹577.50, tax ₹27.50).
+- Order list rows: `invoice` is **non-null even for pending** (the draft invoice), so a
+  list row can always show the invoice total. `listMyOrders` returns newest first.
+- `cancelMyOrder` on `pending` → `{ id, status: "cancelled" }`; the order detail's
+  `events` then include an `order.cancelled` entry. Any later cancel → `409
+  invalid_transition` (the client refetches and re-renders by status).
+- `createSalesReturn` on a confirmed order creates a **`draft` sales return** (its
+  `returnNumber` round-trips, e.g. `RT-…`) and returns it; duplicate/over-quantity lines
+  are rejected 400 by the backend.
+- `payment.confirmed` (gateway webhook) confirms the order AND **clears the cart in the
+  same tx** — the storefront's realtime client invalidates the `"cart"` query and the cart
+  badge store on that frame (both mirrors, since the checkout success path invalidates the
+  same two for COD).
+- Checkout `429` (rate-limited 5/min) carries `reason: "rate_limited"` — the checkout page
+  surfaces a "slow down" message, never auto-retries.
