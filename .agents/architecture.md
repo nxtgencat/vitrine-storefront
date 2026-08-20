@@ -44,7 +44,7 @@ Production: app + API share an origin via a gateway (dashboard §3); WS defaults
 Identical to dashboard §3: same-origin `/api/*` via `next.config.ts` `rewrites()` in dev
 and a gateway in prod (including WS upgrades); better-auth's httpOnly cookie flows through
 the proxy; no CORS (backend mounts none); media bytes + multipart upload flow through the
-proxy. The app never reads the cookie; it hydrates via `GET /api/auth/session`. Dev server
+proxy. The app never reads the cookie; it hydrates via `GET /api/auth/get-session`. Dev server
 runs on `:3000` (`package.json`), matching the backend's `ALLOWED_ORIGINS`.
 
 ## §4 Folder layout
@@ -114,7 +114,8 @@ Same envelope + code map as dashboard §6. Storefront-specific surfaces:
 
 ## §7 Session & auth
 
-- Hydration: `GET /api/auth/session` → `{ user: { id, name, email } | null }`.
+- Hydration: `GET /api/auth/get-session` → `{ user: { id, name, email }, session }` or
+  literal `null` (better-auth registers `/get-session`, not `/session`).
 - Sign-up: `POST /api/auth/sign-up/email` (triggers backend auto-provision of the
   customer profile). Sign-in: `POST /api/auth/sign-in/email`. Both set the httpOnly
   cookie via the proxy. Sign-out: `POST /api/auth/sign-out`.
@@ -126,10 +127,10 @@ Same envelope + code map as dashboard §6. Storefront-specific surfaces:
 
 ## §8 Money
 
-Same as dashboard §8: `formatINR(paise)` via `lib/domain/money.ts` (Indian grouping,
-`₹`), `formatINRCompact` for dense rows, `inputPaiseFromText` for money inputs, currency
-label from nothing (storefront has no settings read — `₹` constant until the backend
-exposes currency). **Every price shown is a price just returned by the API** — the
+Same as dashboard §8, storefront-scoped: `lib/domain/money.ts` exports `PAISE_PER_RUPEE`,
+`formatINR(paise)` (Indian grouping, `₹`, paise suffix only when nonzero) and
+`formatINRCompact` (K/L/Cr) for dense rows. No `inputPaiseFromText` — the storefront never
+collects money. **Every price shown is a price just returned by the API** — the
 storefront re-fetches cart/checkout-total from `GET /api/storefront/cart` (which returns
 `unitPricePaise`/`lineTotalPaise` recomputed server-side) before checkout; never a
 client-summed total as the authoritative number.
@@ -229,6 +230,6 @@ multi-currency · anything outside `/api/storefront/*` + `/api/auth/*`.
 `console.*` outside `lib/logger`, no `any`, no `fetch(` outside `lib/api` [WS constructor
 excepted], no imports from `../backend`, no `hono`/`@hono/*` deps, deps imported both
 directions). The dep-usage allowlist in `lib/verify/verify.ts` holds exactly: `react-dom`
-(next's peer, imported by the framework itself) and `zod`/`zustand` (declared phase 0,
-first import phase 1 — removed from the allowlist in the same commit that first imports
-them). The list only shrinks. A phase's named exit condition is authoritative.
+(next's peer, imported by the framework itself). `zod`/`zustand` were declared phase 0 and
+first imported phase 1 (api-core) — removed from the allowlist in that same commit.
+The list only shrinks. A phase's named exit condition is authoritative.

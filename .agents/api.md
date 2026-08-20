@@ -31,11 +31,15 @@ return `{ data: [...] }` **without** a pagination envelope (except none exist �
 | `signUp({ name, email, password })` | `POST /api/auth/sign-up/email` | * | – |
 | `signIn({ email, password })` | `POST /api/auth/sign-in/email` | * | – |
 | `signOut()` | `POST /api/auth/sign-out` | * | – |
-| `getSession()` | `GET /api/auth/session` | * | – |
+| `getSession()` | `GET /api/auth/get-session` | * | – |
 
 - `signUp` triggers the backend's `user.create.after` hook → a `customers` row is
-  auto-provisioned. Sign-in sets the httpOnly cookie via the proxy. `getSession` →
-  `{ user: { id, name, email } | null, session | null }`.
+  auto-provisioned. `signUp`/`signIn` → `{ token: string | null, user }` (better-auth
+  auto-sign-in sets the httpOnly cookie via the proxy; `token` is null when sign-in is
+  skipped/disabled). `getSession` (better-auth registers `/get-session`, not `/session`)
+  → `{ user: { id, name, email }, session }` **when signed in**, or the **literal
+  JSON `null`** when signed out — the mirror is `.nullable()`. `signOut` →
+  `{ success: true }`.
 
 ## §2 Catalog (public)
 
@@ -99,7 +103,8 @@ return `{ data: [...] }` **without** a pagination envelope (except none exist �
   prices, no cart snapshot.** The backend re-reads the cart, re-prices every line, and
   re-derives stock in-tx. Response `StorefrontCheckoutResult`:
   - `order: { id, orderNumber, status, totalPaise, createdAt }`
-  - `invoice: InvoiceWithLines | null` (present for COD and gateway — draft for gateway)
+  - `invoice: InvoiceWithLines` — **always present, never null**: `issued` for COD,
+    `draft` for gateway (the draft invoice exists so the webhook can flip it)
   - `payment: PaymentRow | null` (gateway: the pending placeholder row)
   - `checkoutReference: string | null` (gateway: the `gatewayPaymentId` handed to the
     payment provider; COD: null)
@@ -153,3 +158,20 @@ backend is a spec bug: fix this file (and raise it), don't silently trust one si
 **Verified backend facts (this file's reading of the route source):** the listing endpoint
 adds `isInStock` per visible variant; the **detail endpoint does not** — a confirmed
 limitation of the backend (`/api/storefront/products/:slug` returns raw variant rows).
+
+**Verified during phase 1 (api-core):**
+
+- `GET /api/auth/get-session` signed out → HTTP 200 with body `null` (no cookie, no
+  `{user:null}` object). `GET /api/auth/session` → 404 (better-auth does not register
+  that route; the smoke script and dashboard both use `/get-session`).
+- `checkout` response `invoice` is non-null in `StorefrontCheckoutResult`
+  (`../backend/services/checkout.ts`).
+- Cart rows: `CartDisplayRow = { id, variantId, quantity, name, sku | null,
+  productSlug, unitPricePaise, lineTotalPaise, createdAt, updatedAt }`; `lineTotalPaise`
+  is always `unitPricePaise * quantity` (`../backend/services/cart.ts`).
+- `InvoiceWithLines` = invoice row + `items` (invoice_items) + `charges`
+  (invoice_charges), from `../backend/services/sales.ts`.
+- Cart/wishlist mutation responses (`PUT /api/storefront/cart`, `DELETE
+  /api/storefront/cart/:variantId`, `POST/DELETE /api/storefront/wishlist/:variantId`)
+  return the raw `cart_items`/`wishlists` row (or `{}` for a no-op delete) — the mirrors
+  accept them via passthrough.

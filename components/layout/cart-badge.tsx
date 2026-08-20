@@ -4,13 +4,31 @@ import { ShoppingBag } from "lucide-react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
+import { useSessionStore } from "@/stores/use-session";
+import { useCartStore } from "@/stores/use-cart";
+import { useEffect } from "react";
 
 /**
  * Header cart entry — an icon button with the line-count badge. The count
- * is store-fed from `GET /api/storefront/cart` (phase 1); until then it
- * renders zero.
+ * comes from the cart store, which hydrates from `GET /api/storefront/cart`
+ * once the session store reports the customer is authenticated
+ * (architecture.md §5, §7). Nothing is shown while the session is unknown.
  */
-export function CartBadge({ count = 0 }: { count?: number }) {
+export function CartBadge() {
+  const sessionStatus = useSessionStore((s) => s.status);
+  const count = useCartStore((s) => s.count);
+  const status = useCartStore((s) => s.status);
+  const hydrate = useCartStore((s) => s.hydrate);
+  const invalidate = useCartStore((s) => s.invalidate);
+
+  useEffect(() => {
+    if (sessionStatus === "authenticated") {
+      if (status === "idle") void hydrate();
+    } else {
+      if (status !== "idle") invalidate();
+    }
+  }, [sessionStatus, status, hydrate, invalidate]);
+
   return (
     <Button
       variant="ghost"

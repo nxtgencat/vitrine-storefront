@@ -27,17 +27,16 @@ rewrite; route groups render. Commit `phase 0: scaffolding`.
 
 ## Phase 1 — API client, types, domain core
 
-- [ ] `lib/types/*` — zod mirrors for **every** storefront module in api.md, written from
+- [x] `lib/types/*` — zod mirrors for **every** storefront module in api.md, written from
       the backend sources (api.md §6 rule); phase 1 covers session, cart, wishlist,
       address, product, order, checkout shapes (all used in later phases).
-- [ ] `lib/api/client.ts`, `lib/api/errors.ts`, `lib/api/idempotency.ts`,
+- [x] `lib/api/client.ts`, `lib/api/errors.ts`, `lib/api/idempotency.ts`,
       `lib/api/requests.ts` (typed functions per api.md §1–§4).
-- [ ] `lib/domain/money.ts`, `lib/domain/lifecycle.ts` (order statuses), `lib/domain/
+- [x] `lib/domain/money.ts`, `lib/domain/lifecycle.ts` (order statuses), `lib/domain/
       lists.ts` (URL search state).
-- [ ] `stores/use-session.ts`, `stores/use-live.ts`, `stores/use-cart.ts`;
-      `components/layout/*` (SiteHeader, SiteFooter, CartBadge, SearchBox),
-      `components/shared/*` (EmptyState, ErrorState, ConfirmDialog, QtyStepper,
-      StockBadge, PriceText).
+- [x] `stores/use-session.ts`, `stores/use-live.ts`, `stores/use-cart.ts`;
+      `components/layout/*` (CartBadge wired to stores), `components/shared/*`
+      (EmptyState, ErrorState, ConfirmDialog, QtyStepper, StockBadge, PriceText).
 
 **Exit:** typecheck-clean `lib/api` + stores; sign-in as a backend-created customer
 hydrates the session store; `getCart` returns the server-recomputed rows. Commit
@@ -110,6 +109,7 @@ starting the next phase.
 | Date | Phase | Note |
 | ---- | ----- | ---- |
 | 2026-08-20 | 0 — scaffolding | `bun run ci` green (typecheck + build + verify:hygiene); `/api/health` returns backend JSON through the dev rewrite; `/`, `/login`, `/signup` render 200. Docs updated in the same commit: architecture.md §3 — dev server port `:3000` (matches backend `ALLOWED_ORIGINS`) documented; §15 — dep-usage allowlist (`react-dom` as next's peer; `zod`/`zustand` declared phase 0, first import phase 1) added, only shrinks. Removed unused starter dep `date-fns` (hygiene: zero unused deps). `.gitignore` now allows committing `.env.example` (was swallowed by `.env*`). |
+| 2026-08-20 | 1 — api-core | Full zod mirror set (`lib/types/{common,auth,product,cart,wishlist,address,order,returns,ops}.ts`), `lib/api/{client,errors,idempotency,requests}.ts`, `lib/domain/{money,lifecycle,lists}.ts`, `stores/{use-session,use-live,use-cart}.ts`, `components/shared/*` + CartBadge wired to the session/cart stores. Docs updated in the same commit: api.md §1 — `getSession` is `GET /api/auth/get-session` (better-auth registers `/get-session`, not `/session`; the old path 404s) and returns literal `null` when signed out; §1 — signUp/signIn return `{ token, user }`; §4 — checkout `invoice` is non-null (always created: COD issued, gateway draft); §6 — phase-1 verified shapes (cart rows, mutation responses). architecture.md §3/§7 — `/get-session` hydration; §8 — no `inputPaiseFromText` (storefront never inputs money); §15 — allowlist now exactly `react-dom` (`zod`/`zustand` removed in this commit, their first import). |
 
 ---
 

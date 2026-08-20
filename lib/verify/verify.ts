@@ -23,7 +23,7 @@ import { join, resolve } from "node:path";
 const ROOT = resolve(import.meta.dirname, "../..");
 const SCAN_DIRS = ["app", "components", "lib", "stores", "hooks"];
 const SKIP_DIRS = new Set(["node_modules", ".next", ".git"]);
-const DEP_ALLOWLIST = new Set(["react-dom", "zod", "zustand"]);
+const DEP_ALLOWLIST = new Set(["react-dom"]);
 
 const violations: string[] = [];
 
