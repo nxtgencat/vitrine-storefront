@@ -63,8 +63,8 @@ storefront/
   components/
     ui/                    # shadcn base-nova (starter)
     layout/                # SiteHeader, SiteFooter, CartBadge, SearchBox, MobileNav
-    product/               # ProductCard, VariantPicker, PriceText, StockBadge
-    cart/  account/        # CartLine, CheckoutForm, OrderTimeline, AddressForm
+    product/               # ProductCard, VariantPicker, PriceText, StockBadge, WishlistToggle, ProductDetailPage
+    cart/  account/        # CartLine, CheckoutForm, OrderTimeline, AddressForm, AddressFormDialog
     shared/                # EmptyState, ErrorState, ConfirmDialog, QtyStepper
   lib/
     api/                   # client, requests, errors, idempotency, server-session (as dashboard)
@@ -73,8 +73,8 @@ storefront/
     types/                 # zod mirrors of /api/storefront/* shapes
     verify/                # hygiene scripts
     utils.ts
-  stores/                  # use-session.ts, use-live.ts, use-cart.ts
-  hooks/                   # use-mobile (starter), use-query, use-realtime
+  stores/                  # use-session.ts, use-live.ts, use-cart.ts, use-checkout.ts
+  hooks/                   # use-mobile (starter), use-query, use-add-to-cart, use-wishlist-toggle
 ```
 
 Route-group decisions:
@@ -92,6 +92,9 @@ Same as dashboard §5. Storefront stores:
   status, sign-in/sign-up/sign-out.
 - `use-cart.ts` — cart **count** badge + line state for the cart page, hydrated from
   `GET /api/storefront/cart`; convenience only.
+- `use-checkout.ts` — the address selected on /addresses ("use for checkout"),
+  remembered for the checkout form; **view-state only** — the checkout endpoint
+  re-reads the address server-side.
 - `use-live.ts` — the display-only query cache + `useQuery`/`invalidate` (dashboard §5).
 
 `lib/api` is the same typed client: request validation, response validation, idempotency
@@ -130,6 +133,13 @@ Same envelope + code map as dashboard §6. Storefront-specific surfaces:
   mount, so a fresh page load for a signed-in customer shows the account menu
   (name + sign-out), not the sign-in button.
 - Session expiry: discovered via a real 401 (§6), never a timer.
+- Client-side action gate on public pages: `requireCustomer()` (in
+  `stores/use-session.ts`) hydrates the session if it isn't known yet (the
+  header hydrates on mount, but a click can land first), then redirects an
+  anonymous user to `/login?next=…` and resolves false. Add-to-cart and the
+  wishlist toggle call it before any mutation. Wishlist hearts never fire the
+  `C`-guarded wishlist read for an anonymous visitor: the toggle renders a
+  plain redirecting button until the session resolves authenticated.
 
 ## §8 Money
 
@@ -162,9 +172,14 @@ real cap.
 
 The storefront's only "list" with pagination semantics is the product listing, which the
 backend returns as **`{ data }` without a pagination envelope** (a bounded, non-paginated
-catalog read). `q` search is a URL search param (`useSearchParams`), debounced. Orders and
-wishlist/cart/addresses are returned as `{ data: [...] }` arrays (no pagination) — render
-directly. Keep the URL as the source of the search query; everything else is store state.
+catalog read). `q` search is a URL search param (`useSearchParams`). The header SearchBox
+is the one search input: on the catalog page (`/`) typing writes the URL with a 300ms
+debounce (`router.replace`) and the listing refetches as `q` changes — the URL is the
+source and the fetch keys off it; elsewhere (any other page) the box only submits on Enter,
+so it never rewrites the current page's URL. The listing page reads `q`, keys its query on
+it, and renders directly. Orders and wishlist/cart/addresses are returned as `{ data: [...] }`
+arrays (no pagination) — render directly. Keep the URL as the source of the search query;
+everything else is store state.
 
 ## §11 Realtime
 
@@ -209,11 +224,19 @@ checkout (address select/create + payment mode), return.
 Feature decisions:
 - **Add to cart** requires a session (backend `C`-guard). Anonymous users are redirected
   to `/login?next=…` — the backend has no anonymous cart, so no guest cart in the UI.
-- **Wishlist toggle** on product cards + detail; wishlist page lists rows with
-  `sellingPricePaise`.
-- **Product detail has no `isInStock`** (backend gap — only the listing returns it). The
-  VariantPicker shows variants without stock badges; add-to-cart is always offered and the
-  backend gates stock at checkout (`409 insufficient_stock` → refetch cart + highlight).
+- **Wishlist is variant-keyed** (the API's wishlist rows are variants). The toggle on
+  cards/detail is per variant; its membership state comes from the shared `wishlist`
+  query (`getWishlist` → variantId set) — one fetch per session, not one
+  `getWishlistItem` per row (same truth; `getWishlistItem` remains available for
+  single-row reads). Toggles flip optimistically and roll back on error; the wishlist
+  page lists rows with `sellingPricePaise` and offers add-to-cart + remove.
+- **Product detail has no `isInStock` and no media** (backend gap — the storefront
+  routes return raw product/variant rows only; media lives on the staff catalog routes
+  the storefront never calls). The VariantPicker shows variants without stock badges
+  and without images; add-to-cart is always offered and the backend gates stock at
+  checkout (`409 insufficient_stock` → refetch cart + highlight).
+- **Addresses** list/create on /addresses; each row can be flagged "use for checkout"
+  (view-state in `use-checkout.ts`, phase 4's checkout form starts from it).
 - **Checkout** gate: cart non-empty (client checks the refetched cart), address selected,
   payment mode chosen. Submit sends exactly `{ custAddressId, paymentMode }`; the 409
   `insufficient_stock` path refetches the cart and marks lines.

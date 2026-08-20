@@ -68,3 +68,4 @@ export type StorefrontVariantRow = z.infer<typeof storefrontVariantRowSchema>;
 export type StorefrontVariantWithStock = z.infer<typeof storefrontVariantWithStockSchema>;
 export type StorefrontProductList = z.infer<typeof storefrontProductListSchema>;
 export type StorefrontProductDetail = z.infer<typeof storefrontProductDetailSchema>;
+export type StorefrontProductWithVariants = StorefrontProductList["data"][number];

@@ -99,6 +99,27 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
   reset: () => set({ status: "unauthenticated", actor: null, error: null, hydratedAt: null }),
 }));
 
+/**
+ * Client-side session gate for public-page actions (architecture.md §7):
+ * hydrates when the session isn't known yet (the header hydrates on mount,
+ * but a click can land before that settles), then redirects anonymous users
+ * to `/login?next=…` and returns false. Mutations on public surfaces
+ * (add-to-cart, wishlist toggle) call this first.
+ */
+export async function requireCustomer(): Promise<boolean> {
+  const store = useSessionStore.getState();
+  if (store.status === "authenticated") return true;
+  if (store.status === "idle" || store.status === "loading") {
+    await store.hydrate();
+  }
+  if (useSessionStore.getState().status === "authenticated") return true;
+  if (typeof window !== "undefined") {
+    const next = encodeURIComponent(`${window.location.pathname}${window.location.search}`);
+    window.location.assign(`/login?next=${next}`);
+  }
+  return false;
+}
+
 let rehydrating = false;
 
 /**
