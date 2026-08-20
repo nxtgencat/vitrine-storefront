@@ -44,7 +44,8 @@ Production: app + API share an origin via a gateway (dashboard §3); WS defaults
 Identical to dashboard §3: same-origin `/api/*` via `next.config.ts` `rewrites()` in dev
 and a gateway in prod (including WS upgrades); better-auth's httpOnly cookie flows through
 the proxy; no CORS (backend mounts none); media bytes + multipart upload flow through the
-proxy. The app never reads the cookie; it hydrates via `GET /api/auth/session`.
+proxy. The app never reads the cookie; it hydrates via `GET /api/auth/session`. Dev server
+runs on `:3000` (`package.json`), matching the backend's `ALLOWED_ORIGINS`.
 
 ## §4 Folder layout
 
@@ -227,4 +228,7 @@ multi-currency · anything outside `/api/storefront/*` + `/api/auth/*`.
 `ci` = `typecheck` + `build` + `verify:hygiene` — the same greps as dashboard §15 (no
 `console.*` outside `lib/logger`, no `any`, no `fetch(` outside `lib/api` [WS constructor
 excepted], no imports from `../backend`, no `hono`/`@hono/*` deps, deps imported both
-directions). A phase's named exit condition is authoritative.
+directions). The dep-usage allowlist in `lib/verify/verify.ts` holds exactly: `react-dom`
+(next's peer, imported by the framework itself) and `zod`/`zustand` (declared phase 0,
+first import phase 1 — removed from the allowlist in the same commit that first imports
+them). The list only shrinks. A phase's named exit condition is authoritative.

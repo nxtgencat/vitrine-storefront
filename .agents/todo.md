@@ -12,13 +12,13 @@ stopped.**
 
 ## Phase 0 — Scaffolding
 
-- [ ] Add deps: `bun add zod zustand`. `hono` deliberately not added (architecture.md §2).
-- [ ] `lib/logger.ts`, `.env.example`, `.env.local`; `next.config.ts` `rewrites()`
+- [x] Add deps: `bun add zod zustand`. `hono` deliberately not added (architecture.md §2).
+- [x] `lib/logger.ts`, `.env.example`, `.env.local`; `next.config.ts` `rewrites()`
       proxying `/api/:path*` to `{NEXT_PUBLIC_API_PROXY|NEXT_PUBLIC_API_BASE}`; verify
       `GET /api/health` through the proxy in dev.
-- [ ] `lib/verify` hygiene script + `package.json` scripts (`dev`, `typecheck`, `build`,
+- [x] `lib/verify` hygiene script + `package.json` scripts (`dev`, `typecheck`, `build`,
       `ci`).
-- [ ] Route groups + shell: `(public)` layout (SiteHeader with search + cart badge +
+- [x] Route groups + shell: `(public)` layout (SiteHeader with search + cart badge +
       account menu, SiteFooter), `(auth)/login` + `(auth)/signup` stubs, `(account)`
       guarded layout stub. Placeholder `(public)/page.tsx`. `bun run build` green.
 
@@ -109,6 +109,7 @@ starting the next phase.
 
 | Date | Phase | Note |
 | ---- | ----- | ---- |
+| 2026-08-20 | 0 — scaffolding | `bun run ci` green (typecheck + build + verify:hygiene); `/api/health` returns backend JSON through the dev rewrite; `/`, `/login`, `/signup` render 200. Docs updated in the same commit: architecture.md §3 — dev server port `:3000` (matches backend `ALLOWED_ORIGINS`) documented; §15 — dep-usage allowlist (`react-dom` as next's peer; `zod`/`zustand` declared phase 0, first import phase 1) added, only shrinks. Removed unused starter dep `date-fns` (hygiene: zero unused deps). `.gitignore` now allows committing `.env.example` (was swallowed by `.env*`). |
 
 ---
 
