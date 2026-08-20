@@ -67,7 +67,7 @@ storefront/
     ui/                    # shadcn base-nova (starter)
     layout/                # SiteHeader, SiteFooter, CartBadge, SearchBox, MobileNav, AccountMenu
     product/               # ProductCard, VariantPicker, PriceText, StockBadge, WishlistToggle, ProductDetailPage
-    cart/  account/        # CartLine; CheckoutForm, OrderStatusBadge, OrderTimeline, ReturnFormDialog, AddressForm, AddressFormDialog
+    cart/  account/        # CartLine; CheckoutForm, OrderStatusBadge, OrderTimeline, ReturnFormDialog, AddressForm, AddressFormDialog, RealtimeIndicator
     shared/                # EmptyState, ErrorState, ConfirmDialog, QtyStepper
   lib/
     api/                   # client, requests, errors, idempotency, server-session (as dashboard)
@@ -187,8 +187,8 @@ everything else is store state.
 ## §11 Realtime
 
 `lib/realtime` — same client as dashboard §11, narrower topic set:
-- Subscribe `order:{id}` (own) + `invoice:{id}` (own, linked) on the order detail page and
-  after checkout in gateway mode.
+- Subscribe `order:{id}` (own) + `invoice:{id}` (own, linked) on the order detail
+  page, after checkout in gateway mode, and — per row — on the orders list.
 - On `{ type, entityId, at }` → `invalidate` the matching order/invoice query; if the
   order's status left `pending`, toast "your order is confirmed" (or cancelled) and
   re-render.
@@ -199,6 +199,41 @@ everything else is store state.
   order) — the realtime client invalidates the live `"cart"` query AND the cart badge
   store on that frame, so the header badge drops without a reload.
 - Reconnect: backoff (1s→…→15s), resubscribe, refetch. No polling anywhere.
+
+**Client hardening (phase 5):**
+
+- **Topic guard.** A customer may subscribe to own `order:<uuid>` / `invoice:<uuid>`
+  only; the backend closes the *whole* connection (1008) on a single unauthorized
+  topic (`backend/routes/realtime.ts`). `subscribe` therefore validates the shape
+  client-side and refuses anything else — a shape bug can never take the shared
+  socket down. Ownership is still the backend's decision.
+- **Close-code semantics.** 1008 (policy violation) is terminal — no reconnect, the
+  denial is per-connection. Other closes keep the backoff loop. A signed-out session
+  stops the loop (the upgrade would be refused anyway); session expiry is surfaced by
+  the account shell's 401 rehydrate path.
+- **Error frames.** `{ op: "error", reason }` (invalid JSON / subscribe frame /
+  unauthorized topic) are logged, never treated as refetch triggers.
+- **Empty-topic connect.** The backend's subscribe frame requires ≥ 1 topic
+  (`topics.min(1)`, `backend/routes/realtime.ts`); the account shell connects
+  eagerly with zero topics, so `sendSubscribe` no-ops until the first `subscribe`
+  — an empty frame would be answered with an error frame on every account page.
+- **Stale-while-refetch.** `invalidate` (use-live.ts) keeps the entry's last-known
+  data and only resets `status` to `idle`; views render whatever data exists, so a
+  refetch window never blanks the UI (the orders list in particular renders its
+  rows while the refetch is in flight). The pre-phase-5 behavior dropped the data
+  and flashed an empty shell on every event.
+- **Connection state.** The client exposes `idle | connecting | connected |
+  reconnecting | rejected`; the account shell (`RealtimeIndicator` in the account
+  layout) opens the channel on mount and renders the state (green Live / amber
+  reconnecting / red Offline).
+
+**Orders list.** `/orders` subscribes to every rendered row's own `order:{id}` and
+`invoice:{id}` topics, so any change to a listed order (webhook confirmation,
+cancellation from another session, return confirmation) re-renders the list live.
+There is **no customer-wide topic** on the backend — a COD checkout publishes only on
+the new order's own topic, which another session cannot subscribe to before the order
+exists — so a brand-new order appears on the next natural visit/refetch (never
+claimed live).
 
 WS URL: `NEXT_PUBLIC_WS_BASE` if set, else `${location.origin}/api/ws`.
 

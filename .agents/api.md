@@ -145,6 +145,25 @@ return `{ data: [...] }` **without** a pagination envelope (except none exist �
 - **Health**: same as dashboard §9 — used by the storefront only as a tiny
   "store status" note if ever surfaced; normally unused (public reads just work).
 
+**Verified during phase 5 (realtime hardening):**
+
+- Error frames are `{ op: "error", reason }`; **one unauthorized topic in a subscribe
+  frame closes the whole connection** with `1008, "unauthorized topic"`
+  (`../backend/routes/realtime.ts`) — the client never subscribes beyond own
+  `order:`/`invoice:` and validates the shape client-side so a shape bug can't take
+  the shared socket down.
+- There is **no customer-wide topic**: checkout publishes only on the new order's own
+  `order:{id}` (plus `invoice:{id}`, and `stock:{outletId}` which is staff-only).
+  The orders list therefore subscribes per-row (own `order:{id}` + `invoice:{id}` per
+  listed order): a change to any listed order — gateway webhook confirmation,
+  cancellation from another session — re-renders the list live; a brand-new order
+  created in another session appears on the next visit/refetch.
+- The upgrade itself is session-guarded: an unauthenticated upgrade is refused at the
+  handshake, so a signed-out client stops reconnecting instead of looping.
+- The subscribe frame requires ≥ 1 topic (`topics.min(1)`) — the account shell's eager
+  connect sends no frame until the first `subscribe`, and the client's invalidate
+  keeps last-known data during refetch windows (no blank flashes on live updates).
+
 ---
 
 ## §6 Shape notes (verified during each phase)

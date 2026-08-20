@@ -52,7 +52,12 @@ export const useLiveStore = create<LiveState>()((set, get) => ({
     for (const target of targets) cancelled.add(target);
     set((state) => {
       const next = { ...state.entries };
-      for (const key of targets) next[key] = { status: "idle", data: undefined, error: undefined, fetchedAt: null };
+      for (const key of targets) {
+        const current = next[key];
+        next[key] = current !== undefined
+          ? { ...current, status: "idle" }
+          : { status: "idle", data: undefined, error: undefined, fetchedAt: null };
+      }
       return { entries: next };
     });
   },
@@ -81,7 +86,8 @@ function runLoader(key: string, loader: () => Promise<unknown>): void {
       inflight.delete(key);
       if (cancelled.has(key)) {
         // Invalidated while this load was in flight — restart so the
-        // replacement data actually lands.
+        // replacement data actually lands. The entry keeps its stale data
+        // throughout, so this never blanks the UI.
         cancelled.delete(key);
         runLoader(key, loader);
       }

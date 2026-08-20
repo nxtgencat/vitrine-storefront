@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { onRealtime, subscribe } from "@/lib/realtime/client";
+import { onRealtime, onRealtimeStatus, subscribe } from "@/lib/realtime/client";
+import type { RealtimeStatus } from "@/lib/realtime/client";
 import { useLiveStore } from "@/stores/use-live";
 
 /**
@@ -47,6 +48,51 @@ export function useInvoiceTopic(invoiceId: string | null | undefined): void {
       off();
     };
   }, [invoiceId, invalidate]);
+}
+
+/**
+ * Subscribe to every own order row's topics while the orders list is mounted
+ * (api.md §5: a customer may only subscribe to own `order:`/`invoice:`
+ * documents; each row's topics are authorized — ownership is the backend's
+ * decision). Any event (or a reconnect) invalidates the `orders:` list query,
+ * so a change to any listed order — a gateway order confirming via the
+ * webhook, a cancellation from another session, a return confirmation —
+ * re-renders the list live. A brand-new order created in another session has
+ * no topic to subscribe to until it exists (the backend publishes only on
+ * `order:{id}` — there is no customer-wide topic), so new rows arrive on the
+ * next natural visit/refetch; every change to a row already on screen is
+ * realtime.
+ */
+export function useOrdersRealtime(rows: ReadonlyArray<{ id: string; invoice: { id: string } | null }>): void {
+  const invalidate = useLiveStore((state) => state.invalidate);
+  const signature = rows.map((row) => `${row.id}|${row.invoice?.id ?? ""}`).join(",");
+
+  useEffect(() => {
+    if (signature === "") return;
+    const off = onRealtime((frame) => {
+      if (frame.type === "reconnected") invalidate("orders:");
+    });
+    const unsubscribes = signature.split(",").flatMap((part) => {
+      const [orderId, invoiceId] = part.split("|");
+      if (orderId === undefined || orderId === "") return [];
+      const offs: (() => void)[] = [subscribe(`order:${orderId}`)];
+      if (invoiceId !== undefined && invoiceId !== "") offs.push(subscribe(`invoice:${invoiceId}`));
+      return offs;
+    });
+    return () => {
+      for (const unsubscribe of unsubscribes) unsubscribe();
+      off();
+    };
+  }, [signature, invalidate]);
+}
+
+/** The shared client's connection state (the account shell's live indicator). */
+export function useRealtimeStatus(): RealtimeStatus {
+  const [current, setCurrent] = useState<RealtimeStatus>("idle");
+
+  useEffect(() => onRealtimeStatus(setCurrent), []);
+
+  return current;
 }
 
 /**

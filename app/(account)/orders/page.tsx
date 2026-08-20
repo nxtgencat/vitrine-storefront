@@ -8,6 +8,7 @@ import { ErrorState } from "@/components/shared/error-state";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
+import { useOrdersRealtime } from "@/hooks/use-realtime";
 import { listMyOrders } from "@/lib/api/requests";
 import { formatDate } from "@/lib/domain/dates";
 import { formatINR } from "@/lib/domain/money";
@@ -17,23 +18,30 @@ import { Package } from "lucide-react";
 /**
  * /orders (architecture.md §13; api.md §4). My orders list from
  * GET /api/storefront/orders/my; every row's totals come from the backend
- * (`totalPaise`, invoice summary) and are shown verbatim.
+ * (`totalPaise`, invoice summary) and are shown verbatim. Live (architecture
+ * .md §11): each rendered row's own `order:`/`invoice:` topics are
+ * subscribed, so a status change to any listed order — webhook
+ * confirmation, cancellation from another session — re-renders the list
+ * without a refresh. A brand-new order appears on the next visit/refetch
+ * (the backend has no customer-wide topic).
  */
 export default function OrdersPage() {
   const orders = useQuery("orders:", listMyOrders);
-  const rows = orders.status === "success" ? (orders.data?.data ?? []) : [];
+  const rows = orders.data?.data ?? [];
+
+  useOrdersRealtime(rows);
 
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-2xl font-semibold tracking-tight">Your orders</h1>
 
-      {orders.status === "loading" && (
+      {orders.data === undefined && (orders.status === "loading" || orders.status === "idle") && (
         <div className="flex justify-center py-16">
           <Spinner />
         </div>
       )}
 
-      {orders.status === "error" && (
+      {orders.data === undefined && orders.status === "error" && (
         <div className="flex flex-col items-start gap-4">
           <ErrorState error={orders.error} fallback="Couldn't load your orders." />
           <Button variant="outline" size="sm" onClick={orders.refetch}>
@@ -42,7 +50,7 @@ export default function OrdersPage() {
         </div>
       )}
 
-      {orders.status === "success" && rows.length === 0 && (
+      {orders.data !== undefined && rows.length === 0 && (
         <EmptyState
           icon={Package}
           title="No orders yet"
@@ -50,7 +58,7 @@ export default function OrdersPage() {
         />
       )}
 
-      {orders.status === "success" && rows.length > 0 && (
+      {rows.length > 0 && (
         <ul className="flex flex-col gap-3">
           {rows.map((row) => (
             <li key={row.id}>
