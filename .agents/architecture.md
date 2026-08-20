@@ -67,7 +67,7 @@ storefront/
     cart/  account/        # CartLine, CheckoutForm, OrderTimeline, AddressForm
     shared/                # EmptyState, ErrorState, ConfirmDialog, QtyStepper
   lib/
-    api/                   # client, requests, errors, idempotency (as dashboard)
+    api/                   # client, requests, errors, idempotency, server-session (as dashboard)
     domain/                # money.ts, lifecycle.ts (order statuses), lists.ts
     realtime/              # ws client (order:{id}, invoice:{id})
     types/                 # zod mirrors of /api/storefront/* shapes
@@ -122,7 +122,13 @@ Same envelope + code map as dashboard §6. Storefront-specific surfaces:
 - The storefront never needs `customerId` client-side — every `C`-guarded call resolves it
   server-side. Views that need a name use `session.user.name` / `email`.
 - Route guards: `(account)` layout (server) redirects anonymous → `/login?next=…`;
-  client-side shell re-checks for post-render races.
+  client-side shell re-checks for post-render races. The server guard
+  (`lib/api/server-session.ts`, the app's only server-side fetch) reads the
+  forwarded httpOnly cookie and redirects only on a definitive no-session
+  answer — a backend outage lets the render through and the client hydration
+  surfaces reality. The header's account menu hydrates the session store on
+  mount, so a fresh page load for a signed-in customer shows the account menu
+  (name + sign-out), not the sign-in button.
 - Session expiry: discovered via a real 401 (§6), never a timer.
 
 ## §8 Money

@@ -19,3 +19,14 @@ export function buildQuery(params: Record<string, string | number | boolean | un
   const query = search.toString();
   return query === "" ? "" : `?${query}`;
 }
+
+/**
+ * The `next` redirect target after auth (architecture.md §7): only an
+ * internal path may be honored — never a scheme, and never a
+ * protocol-relative URL (`//host`). Anything else falls back to null.
+ */
+export function safeNext(value: string | null): string | null {
+  if (value === null) return null;
+  if (!value.startsWith("/") || value.startsWith("//")) return null;
+  return value;
+}

@@ -1,8 +1,8 @@
 import Link from "next/link";
 
+import { AccountMenu } from "@/components/layout/account-menu";
 import { CartBadge } from "@/components/layout/cart-badge";
 import { SearchBox } from "@/components/layout/search-box";
-import { Button } from "@/components/ui/button";
 
 export function SiteHeader() {
   return (
@@ -19,14 +19,7 @@ export function SiteHeader() {
           <SearchBox />
         </div>
         <div className="ml-auto flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            nativeButton={false}
-            render={<Link href="/login" />}
-          >
-            Sign in
-          </Button>
+          <AccountMenu />
           <CartBadge />
         </div>
       </div>
